@@ -10,6 +10,14 @@ This is loosely structured on IETF RFC formats.
 
 # Introduction
 
+Questions this is intended to answer:
+
+ * How do we create decentralized, content-addressed documents that can refer to each other?
+ * How do we structure these documents in a way that is generic and includes ONLY content, no layout or appearance information, while still making it possible to specify that sort of thing separately?
+ * How do we organize these documents so that everyone can fetch them, as well as add new ones?
+ * Content-addressing means that revising or updating documents is impossible; you can only publish a new one.  How do we allow users to find newer stuff?
+ * How do we allow users to find relationships between documents that the documents themselves don't necessarily know about?  Say, two documents that have no links to each other but are published by the same author.
+
 # Terms and definitions
 
 We're going to define all structures as Rust code structures because they're unambiguous and that's how I'm going to be coding them.  These will define the semantics of the structures, nothing about the layout.
@@ -315,9 +323,13 @@ What about messages which are private but sent to multiple recipients?  Easy way
 
 # RPC???
 
-FOR NOW we just use JSON-RPC
+FOR NOW we just use [JSON-RPC](http://www.jsonrpc.org/specification) over HTTP.
 
 # Security considerations
+
+There's probably more than a few!  DDoS is probably the main one.
+
+Also, how a user interacts with private keys is deliberately undefined.
 
 # References
 
