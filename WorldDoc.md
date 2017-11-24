@@ -18,22 +18,20 @@ Questions this is intended to answer:
  * Content-addressing means that revising or updating documents is impossible; you can only publish a new one.  How do we allow users to find newer stuff?
  * How do we allow users to find relationships between documents that the documents themselves don't necessarily know about?  Say, two documents that have no links to each other but are published by the same author.
 
+Questions this is NOT intended to answer:
+
+ * How do we make a COMPLETELY distributed system?
+ * How do we make a system immune to censorship and surveillance?  ("Resistant" is desirable, "immune" is asking for an arms race; social problems do not necessarily have technological solutions.)
+
+The point is to facilitate human communication in an awesome way, not to solve all the world's problems.
+
 # Terms and definitions
 
 We're going to define all structures as Rust code structures because they're unambiguous and that's how I'm going to be coding them.  These will define the semantics of the structures, nothing about the layout.
 
 # Documents
 
-
-## Data format
-
-Okay, the REAL solution here is this: We MUST have a canonical format anyway, so we can turn an object into a KNOWN content hash.  For that it must be unambiguous: ie, cosmetic changes to indentation or spacing or such of the layout won't affect the generated data.  HTML, XML, JSON, YAML, Markdown, etc. all allow syntactically-insignificant whitespace and such, and so if we use something like this we MUST also have a canonical text layout and a pretty-printer.
-
-SO, instead we can have a canonical binary format, and can take MANY sort of text formats and translate them into it.  So, HTML, Markdown, LaTeX and so on should all be able to be converted into WorldDoc, and a WorldDoc document within the target language's capabilities should be able to be losslessly (hopefully) translated back.  Pandoc may be a good tool for doing this, or there may be others.
-
-I'm leaning towards a CBOR encoding as the default canonical format.  It's flexible, it's fairly simple, it's fairly comprehensive, it's a IETF standard, it seems in general Not Terrible.  Cap'n Proto and a couple others are decent contenders.  Then we can use XML as a simple source format to translate into this canonical format.
-
-Now things to think about: How to provide a schema, and do we care about a meta-schema system?
+The central structure is a document.  The point of this system is to be able to network documents together.  Sorta what web pages were supposed to be.
 
 ## Document structure
 
@@ -198,6 +196,16 @@ Preformatted is interesting. I would tend to think of it as more 'literal'. (i.e
 Semantic tags are important. I'm less sure about superscript and subscript. I'd like to include as many things that they're used to represent as possible.
 ```
 
+## Data format
+
+Okay, the REAL solution here is this: We MUST have a canonical format anyway, so we can turn an object into a KNOWN content hash.  For that it must be unambiguous: ie, cosmetic changes to indentation or spacing or such of the layout won't affect the generated data.  HTML, XML, JSON, YAML, Markdown, etc. all allow syntactically-insignificant whitespace and such, and so if we use something like this we MUST also have a canonical text layout and a pretty-printer.
+
+SO, instead we can have a canonical binary format, and can take MANY sort of text formats and translate them into it.  So, HTML, Markdown, LaTeX and so on should all be able to be converted into WorldDoc, and a WorldDoc document within the target language's capabilities should be able to be losslessly (hopefully) translated back.  Pandoc may be a good tool for doing this, or there may be others.
+
+I'm leaning towards a CBOR encoding as the default canonical format.  It's flexible, it's fairly simple, it's fairly comprehensive, it's a IETF standard, it seems in general Not Terrible.  Cap'n Proto and a couple others are decent contenders.  Then we can use XML as a simple source format to translate into this canonical format.
+
+Now things to think about: How to provide a schema, and do we care about a meta-schema system?
+
 ## Distributed storage
 
 IPFS works.  Though it's a little pinky-and-the-brain-y.  I really wish they would just concentrate on making a DHT that is as good as possible for static storage instead of making it do everything.
@@ -205,6 +213,10 @@ IPFS works.  Though it's a little pinky-and-the-brain-y.  I really wish they wou
 Also look into https://datproject.org/
 
 ## Distributed databases
+
+Right now, this seems Hard, without any really good existing solutions.  So, the assumption shall be that database-y things, like indices and such, will be applications run by specific hosts rather than distributed systems.
+
+Things to look at:
 
  * https://github.com/orbitdb/orbit-db
  * https://github.com/attic-labs/noms
@@ -234,14 +246,57 @@ The response message must contain:
 
 To do: You're going to want to be able to fetch old public keys so you can validate old messages.  A datestamp field and an easy way to get the first public key published before that date seems worthy.  A monotonic increasing serial number might also be useful but really is entirely supplanted by an ISO datetime which is also monotonic increasing.
 
-Security holes: This depends on no MITM, no domain spoofing.  The source of authority basically becomes whoever controls `alopex.li`.  The goal is to make it decentralized (anyone can run their own thing and anyone's thing can talk to each other), not distributed (no clients or servers).
+There's no reason these keys can't be distributed through IPFS, but there needs to be some way to associate "the key for icefox@alopex.li on date X" with IPFS hash "Qm...".  So, we assume 
+
+Security holes: This depends on no MITM, no domain spoofing.  (This could be enforced at transport-layer by HTTPS.)  The source of authority basically becomes whoever controls `alopex.li`.  The goal is to make it decentralized (anyone can run their own thing and anyone's thing can talk to each other), not distributed (no clients or servers).
+
+```rust
+struct Pubkey {
+    username: Identity,
+    algorithm: Algorithm,
+    public_key: Key,
+    created: DateTime,
+    expires: Option<DateTime>,
+    ttl: Option<Timespan of some kind>
+    // An optional signature, so you can sign a new key with the previous one.
+    // TODO: Specify a bit better exactly what goes into this and how it is connected.
+    // Do we want a specific reference to the previous key as well?
+    signature: Option<Signature>,
+}
+
+/// A username, such as icefox@alopex.li
+struct Identity {
+    username: String,
+    authority: String,
+}
+
+/// A base64 encoded string of a key
+struct Key(String);
+
+/// A base64 encoded signature for the message
+struct Signature(String);
+
+enum Algorithm {
+    Ed25519,
+    // Maybe others later
+}
+
+struct PubkeyRequest {
+    username: String,
+    query: Option<Query>
+}
+
+enum Query {
+    Before(DateTime),
+    After(DateTime),
+}
+```
 
 ## Private keys
 
+This is entirely optional and there's plenty of other ways of doing it, including having the users manage their own private keys somehow.  The PURPOSE is to, one way or another, get a private key into the browser/viewer/client application, and allow the user to easily get the corresponding public key onto a public key server.
 
-This is entirely optional and there's plenty of other ways of doing it, including having the users manage their own private keys somehow.  The PURPOSE is to, one way or another, get a private key into the browser/viewer/client application, and allow the user to easily get the corresponding public key onto a public key server..
-
-The way I envision this, for practical purposes, is as a centralized keystore that can be either hosted by a user on their own or by some company for their users or whatever.  It goes through some implementation-defined authentication (for example, logging in with a shared secret), and then gives the user operations to manipulate their private keys, probably with corresponding effects on their public keys.  Operations should probably include:
+The way I envision this, for practical purposes, is as a centralized-ish keystore that can be either hosted by a user on their own or by some company for their users or whatever.  It goes through some implementation-defined authentication (for example, logging in with a shared secret), and then gives the user operations to manipulate their private keys, probably with corresponding effects on their public keys.  Operations should probably include:
 
  * Create new keypair
  * Delete private key (for security/ergonomics reasons?  Probably not strictly necessary)
@@ -253,27 +308,13 @@ Actually just having pubkey servers take a signed message is maybe not too bad; 
 
 Note that both public and private key storage should be completely log-based, append only and letting you step back in time to view all changes.
 
-
-
-Evolution of the name server concept, which will be obsolete once this is fleshed out.
-
-Essentially, there are three document operations:
-
- * Retrieve a document by name (rather than content address)
- * Submit a new document to be indexed (does this subsume the "update name to point to new document" operation?)
- * Ask for a list of documents that have a particular relation to an existing document
-
-There is one server operation:
-
- * Ask for the types of relations it knows about
-
-Most responses should be stored as IPFS nodes.  Responses that return non-fixed-sized data (queries) should be chunked/paginated, rate limited, etc.  (They can also, optionally, return an IPFS content address to the whole content for the client to retrieve at their leisure.)
-
 # Name servers
+
+The goal is to associate a nice human-readable name (such as an URL) with a human-unfriendly content address (such as an IPFS content ID).
 
 First off: Why not just use DNS?  DNS already gets used for various bits of this.  The answer is: DNS is not really designed for rapid-updating content.  The Web provides essentially instant feedback and we need that too.  DNS is not designed to contain URL's.  DNS is also not designed to handle query strings, post requests, or other such things.
 
-Second off: Why is it client-server instead of peer-to-peer?  The answer is: client-server is easy, both for users and the person actually running the damn thing.  It's a solved problem.  I like solved problems.
+Second off: Why is it client-server instead of peer-to-peer?  The answer is: client-server is easy, both for users and the person actually running the damn thing.  It's a solved problem.  I like solved problems.  You could totally make this with whatever distributed database you wanted, since that's essentially what it is, but for now we'll consider a client-server setup.
 
 Okay, now that's out of the way, the fundamental mechanism is to turn a URL into an (IPFS) content address.  This lets you trivially look up mutable IPFS objects using human-readable names, just with an HTTP GET request to a URL.  Then you can take a POST request to the same URL that lets a user update the content address with a message that contains:
 
@@ -283,9 +324,19 @@ Okay, now that's out of the way, the fundamental mechanism is to turn a URL into
  * New address
  * Crypto signature (containing all the above)
 
-But it alone is not really useful though, because really you want to get a document, and some set of associated documents.  You very quickly end up doing relational database queries, it just returns content addresses that the client fetches from IPFS.
+```rust
+struct UpdateRequest {
+    username: Identity,
+    timestamp: DateTime,
+    target: Location,
+    new_target: String, // CID?
+    signature: Signature,
+}
+```
 
-So we very quickly come to the "document" part of "WorldDoc", with questions like, how do you send various sorts of database queries?  A LOT of this, and a lot of other web app type things, are really just RPC database lookups.  How does the server reply with aggregates of content ID's, expressing the relationships between them?
+But it alone is not super useful though, because really you want to get a document, and some set of associated documents.  You very quickly end up doing relational database queries, it just returns content addresses that the client fetches from IPFS.
+
+So we very quickly come to the "document" part of "WorldDoc", with questions like, how do you send various sorts of database queries?  A LOT of this, and a lot of other web app type things, are really just RPC calls or database lookups.  How does the server reply with aggregates of content ID's, expressing the relationships between them?
 
 Fundamental operations we want to do:
 
@@ -303,6 +354,26 @@ In a website, this relationship is described by the user; they explicitly make h
 So the thing is... this is still a particular application, of which there can be many different types with different capabilities.
 
 Client implementation: Probably a firefox plugin or such, do some research; it'll have to talk to IPFS somehow.  Running it as a website pulling from a known IPFS source (local or remote) is also desirable.  It will DEFINITELY be nice to be able to render this into an HTML page.
+
+## Indexer
+
+Evolution of the name server concept, which will be obsolete once this is fleshed out.
+
+Essentially, there are three document operations:
+
+ * Retrieve a document by name (rather than content address)
+ * Submit a new document to be indexed (does this subsume the "update name to point to new document" operation?)
+ * Ask for a list of documents that have a particular relation to an existing document
+
+There is one server operation:
+
+ * Ask for the types of relations it knows about
+
+Most responses should be stored as content addresses.  Responses that return non-fixed-sized data (queries) should be chunked/paginated, rate limited, etc.  (They can also, optionally, return an IPFS content address to the whole content for the client to retrieve at their leisure.)
+
+```rust
+
+```
 
 # Pubsub
 
