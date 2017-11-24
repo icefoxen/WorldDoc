@@ -19,36 +19,17 @@ We're going to define all structures as Rust code structures because they're una
 
 ## Data format
 
-There's a number of pretty decent binary data formats.
-
- * CBOR
- * Cap'n Proto
- * Protobuf
- * Thrift
- * XDR
-
-I don't really have any terribly strong opinions about any of them.
-
-There's VERY FEW good text data formats.  Odd.
-
- * JSON (kinda meh)
- * JSON5 (better)
- * XML (kinda meh)
- * HTML (not great and we'd have to add/restrict a LOT of structure, but the network effects might be worth it)
- * YAML (pretty bad)
- * TOML (probably not appropriate, doesn't like deeply nested structures and such)
-
 Okay, the REAL solution here is this: We MUST have a canonical format anyway, so we can turn an object into a KNOWN content hash.  For that it must be unambiguous: ie, cosmetic changes to indentation or spacing or such of the layout won't affect the generated data.  HTML, XML, JSON, YAML, Markdown, etc. all allow syntactically-insignificant whitespace and such, and so if we use something like this we MUST also have a canonical text layout and a pretty-printer.
 
-SO, instead we can have a canonical binary format, and can take SEVERAL sort of text formats and translate them into it.  So, HTML, Markdown, LaTeX and so on should all be able to be converted into WorldDoc, and a WorldDoc document within the target language's capabilities should be able to be losslessly (hopefully) translated back.  Pandoc may be a good tool for doing this, or there may be others.
+SO, instead we can have a canonical binary format, and can take MANY sort of text formats and translate them into it.  So, HTML, Markdown, LaTeX and so on should all be able to be converted into WorldDoc, and a WorldDoc document within the target language's capabilities should be able to be losslessly (hopefully) translated back.  Pandoc may be a good tool for doing this, or there may be others.
 
-I'm leaning towards a CBOR encoding as the default canonical format.  It's flexible, it's fairly simple, it's fairly comprehensive, it's a IETF standard, it seems in general Not Terrible.
+I'm leaning towards a CBOR encoding as the default canonical format.  It's flexible, it's fairly simple, it's fairly comprehensive, it's a IETF standard, it seems in general Not Terrible.  Cap'n Proto and a couple others are decent contenders.  Then we can use XML as a simple source format to translate into this canonical format.
 
 Now things to think about: How to provide a schema, and do we care about a meta-schema system?
 
-### Document structure
+## Document structure
 
-None of this is exhaustive, very much a WIP!  Sources to look at: HTML, Docbook, LaTeX, RST, Pandoc
+Remember, this is Version 0.  It is intended to provide the BASIC structure and content.  We're going to leave OUT complicated questions of sublanguages, extensibility, and general-purposes semantic content.
 
 Navigational things like sidebars, title bars, etc. should be part of the viewer application generated from metadata the index server provides.  Same for layout.  How this works is yet to be specified.  The focus for documents is *structure*.
 
@@ -71,7 +52,8 @@ Metadata:
 Structure:
 
  * paragraph
- * chapter?  Section?  Are these the same
+ * chapter
+ * section, subsection, sub-subsection, etc.
 
 Contents:
 
@@ -80,21 +62,75 @@ Contents:
  * particular font face/style (for example to represent smallcaps if you're writing for Death in a Terry Pratchett book)
  * Image/figure
  * Table
- * Math (LaTeX or MathML may both be worth investigating in terms of what primitives you want to be able to provide)
  * Footnote
  * xref: Cross reference to another document/object.  This should probably be content-addressed, but there's no specific reason it exactly HAS to be.  Also, it does not necessarily need to be a WorldDoc document, or in the IPFS namespace.  Other content-addressed namespaces that might be interesting, off the top of my head, are: DOI, ISBN, ...
  * List
- * Quote
+ * Quote (this can be inline, or a transclusion from another document, or both?)
  * Transclusion?
- * font/style span?
  * Subscript, superscript
  * Definition?  Abbreviation?
  * insertion, deletion (strikethrough)
- * Fixed-width text?  Preformatted text is a better way of putting it.
- * Semantic tags, such as addresses?
+ * Fixed-width text?  Preformatted text is a better way of putting it.  Inline vs. its own block?  Huh.
  * Comments?
  * Internal links/anchors
+
+```rust
+struct Document {
+    contents: Vec<Part>
+}
+
+enum Part {
+    Body(Vec<Segment>),
+    Section {
+        level: u32, 
+        contents: Vec<Segment>
+    },
+}
+
+enum Segment {
+    Para(Vec<Element>),
+    Table {
+        header: ???
+        body: ???
+        footer: ???
+    },
+    Figure(???),
+    List {
+        type: ListType,
+        elements: Vec<Segment>,
+    },
+    Quote(Segment),
+}
+
+enum ListType {
+    Bulleted,
+    Numbered,
+}
+
+enum Element {
+    Text(String),
+    Strong(Element),
+    Emphasized(Element),
+    Footnote(Element),
+    Xref(Element, other stuff),
+    Subscript(Element),
+    Superscript(Element),
+    Insertion(Element),
+    Deletion(Element),
+    Preformatted(Element),
+    Comment(String),
+    Anchor(String, Element???),
+
+}
+```
+
+ ### Things to do later
+
+ * Semantic tags, such as addresses?
  * Arbitrary semantic tags?  I kindasorta feel like being able to label things `<spoiler>` or `<shitpost>` would be...  I'm not sure I can say "virtuous" or "useful", but would get a lot of usage.
+ * Math (LaTeX or MathML may both be worth investigating in terms of what primitives you want to be able to provide)
+ * font/style span?
+
 
 Some of these things, such as tables, math, perhaps images (SVG?!) are more or less their own sublanguages...
 
