@@ -29,6 +29,8 @@ The point is to facilitate human communication in an awesome way, not to solve a
 
 We're going to define all structures as Rust code structures because they're unambiguous and that's how I'm going to be coding them.  These will define the semantics of the structures, nothing about the layout.
 
+ * CID: Content Identifier.  A machine-readable hash that uniquely (to within the limits of the hash function) addresses a particular object (file) based on its contents, such that a distributed hashtable type network can locate the object when given the hash.  For now we will assume it is an IPFS CID, but there's no reason it couldn't be used with any other content-addressed system with a global namespace.
+
 # Documents
 
 The central structure is a document.  The point of this system is to be able to network documents together.  Sorta what web pages were supposed to be.
@@ -69,7 +71,7 @@ Contents:
  * Image/figure
  * Table
  * Footnote
- * xref: Cross reference to another document/object.  This should probably be content-addressed, but there's no specific reason it exactly HAS to be.  Also, it does not necessarily need to be a WorldDoc document, or in the IPFS namespace.  Other content-addressed namespaces that might be interesting, off the top of my head, are: DOI, ISBN, ...
+ * xref: Cross reference to another document/object.  This should probably be a CID but there's no specific reason it exactly HAS to be.  Also, it does not necessarily need to be a WorldDoc document, or in the IPFS namespace.  Other content-addressed namespaces that might be interesting, off the top of my head, are: DOI, ISBN, ...
  * List
  * Quote (this can be inline, or a transclusion from another document, or both?)
  * Transclusion?
@@ -82,7 +84,17 @@ Contents:
 
 ```rust
 struct Document {
-    contents: Vec<Part>
+    contents: Vec<Part>,
+    title
+    date
+    author
+    previous revisions
+    subject
+    categories/tags (with vocabularies?)
+    in-response-to
+    reply-to
+    language
+    character encoding
 }
 
 enum Part {
@@ -93,17 +105,25 @@ enum Part {
     },
 }
 
+/// Describe structure of the contained text
 enum Segment {
-    Para(Vec<Element>),
+    Para(Elements),
     Table {
-        header: ???
-        body: ???
-        footer: ???
+        header: Vec<Elements>
+        body: Vec<Vec<Segment>>
+        footer: Vec<Elements>
     },
-    Figure(???),
+    Figure {
+        caption: Vec<Elements>,
+        source: ???,
+    }
     List {
         type: ListType,
         elements: Vec<Segment>,
+    },
+    Code {
+        language: Option<String>,
+        contents: String,
     },
     Quote(Segment),
 }
@@ -113,20 +133,25 @@ enum ListType {
     Numbered,
 }
 
+type Elements = Vec<Element>;
+
+/// Describe properties of the contained text
 enum Element {
     Text(String),
-    Strong(Element),
-    Emphasized(Element),
-    Footnote(Element),
-    Xref(Element, other stuff),
-    Subscript(Element),
-    Superscript(Element),
-    Insertion(Element),
-    Deletion(Element),
-    Preformatted(Element),
+    Strong(Elements),
+    Emphasized(Elements),
+    Footnote(Elements),
+    Xref {
+        contents: Elements, 
+        ???
+    },
+    Subscript(Elements),
+    Superscript(Elements),
+    Insertion(Elements),
+    Deletion(Elements),
+    Preformatted(Elements),
     Comment(String),
-    Anchor(String, Element???),
-
+    Anchor(String),
 }
 ```
 
@@ -137,6 +162,9 @@ enum Element {
  * Math (LaTeX or MathML may both be worth investigating in terms of what primitives you want to be able to provide)
  * font/style span?
 
+Document type, relation vocabularies (ontologies)...
+
+We really really do want to be able to address sublanguages here.  Code is an obvious extension!
 
 Some of these things, such as tables, math, perhaps images (SVG?!) are more or less their own sublanguages...
 
@@ -198,11 +226,11 @@ Semantic tags are important. I'm less sure about superscript and subscript. I'd 
 
 ## Data format
 
-Okay, the REAL solution here is this: We MUST have a canonical format anyway, so we can turn an object into a KNOWN content hash.  For that it must be unambiguous: ie, cosmetic changes to indentation or spacing or such of the layout won't affect the generated data.  HTML, XML, JSON, YAML, Markdown, etc. all allow syntactically-insignificant whitespace and such, and so if we use something like this we MUST also have a canonical text layout and a pretty-printer.
+Okay, the REAL solution here is this: We MUST have a canonical format anyway, so we can turn an object into a KNOWN content hash... two different people using two different programs from the same source text should create the same destination object, byte for byte, with an identical hash.  For that it must be unambiguous: ie, cosmetic changes to indentation or spacing or such of the layout won't affect the generated data.  HTML, XML, JSON, YAML, Markdown, etc. all allow syntactically-insignificant whitespace and such, and so if we use something like this we MUST also have a canonical text layout and a pretty-printer.
 
 SO, instead we can have a canonical binary format, and can take MANY sort of text formats and translate them into it.  So, HTML, Markdown, LaTeX and so on should all be able to be converted into WorldDoc, and a WorldDoc document within the target language's capabilities should be able to be losslessly (hopefully) translated back.  Pandoc may be a good tool for doing this, or there may be others.
 
-I'm leaning towards a CBOR encoding as the default canonical format.  It's flexible, it's fairly simple, it's fairly comprehensive, it's a IETF standard, it seems in general Not Terrible.  Cap'n Proto and a couple others are decent contenders.  Then we can use XML as a simple source format to translate into this canonical format.
+I'm leaning towards a CBOR encoding as the default canonical format.  It's flexible, it's fairly simple, it's fairly comprehensive, it's an IETF standard, it seems in general Not Terrible.  Cap'n Proto and a couple others are decent contenders.  Then we can use XML as a simple-but-complete source format to translate into this canonical format, or Markdown as a simpler-but-incomplete version.
 
 Now things to think about: How to provide a schema, and do we care about a meta-schema system?
 
@@ -246,7 +274,7 @@ The response message must contain:
 
 To do: You're going to want to be able to fetch old public keys so you can validate old messages.  A datestamp field and an easy way to get the first public key published before that date seems worthy.  A monotonic increasing serial number might also be useful but really is entirely supplanted by an ISO datetime which is also monotonic increasing.
 
-There's no reason these keys can't be distributed through IPFS, but there needs to be some way to associate "the key for icefox@alopex.li on date X" with IPFS hash "Qm...".  So, we assume 
+There's no reason these keys can't be distributed through IPFS, but there needs to be some way to associate "the key for icefox@alopex.li on date X" with IPFS hash "Qm...".  So, we assume there's a *location* you can find to look up a particular identity.
 
 Security holes: This depends on no MITM, no domain spoofing.  (This could be enforced at transport-layer by HTTPS.)  The source of authority basically becomes whoever controls `alopex.li`.  The goal is to make it decentralized (anyone can run their own thing and anyone's thing can talk to each other), not distributed (no clients or servers).
 
@@ -264,7 +292,7 @@ struct Pubkey {
     signature: Option<Signature>,
 }
 
-/// A username, such as icefox@alopex.li
+/// A user identity, such as icefox@alopex.li
 struct Identity {
     username: String,
     authority: String,
@@ -292,11 +320,13 @@ enum Query {
 }
 ```
 
+Again, the `PubkeyRequest` basically comes down to "a particular sort of database query", so really a general-purpose way of making such queries would be really nice.
+
 ## Private keys
 
-This is entirely optional and there's plenty of other ways of doing it, including having the users manage their own private keys somehow.  The PURPOSE is to, one way or another, get a private key into the browser/viewer/client application, and allow the user to easily get the corresponding public key onto a public key server.
+This is entirely optional and there's plenty of ways of doing it, including having the users manage their own private keys somehow.  The PURPOSE is to, one way or another, get a private key into the browser/viewer/client application, and allow the user to easily get the corresponding public key onto a public key server.
 
-The way I envision this, for practical purposes, is as a centralized-ish keystore that can be either hosted by a user on their own or by some company for their users or whatever.  It goes through some implementation-defined authentication (for example, logging in with a shared secret), and then gives the user operations to manipulate their private keys, probably with corresponding effects on their public keys.  Operations should probably include:
+The way I envision this, for practical purposes, is as a keystore that can be either hosted by a user on their own or by some company for their users or whatever.  It goes through some implementation-defined authentication (for example, logging in with a shared secret), and then gives the user operations to manipulate their private keys, probably with corresponding effects on their public keys.  Operations should probably include:
 
  * Create new keypair
  * Delete private key (for security/ergonomics reasons?  Probably not strictly necessary)
@@ -400,7 +430,7 @@ FOR NOW we just use [JSON-RPC](http://www.jsonrpc.org/specification) over HTTP.
 
 There's probably more than a few!  DDoS is probably the main one.
 
-Also, how a user interacts with private keys is deliberately undefined.
+Also, how a user actually interacts with private keys is deliberately undefined.
 
 # References
 
