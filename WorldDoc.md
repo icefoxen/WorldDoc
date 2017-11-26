@@ -78,23 +78,29 @@ Contents:
  * Subscript, superscript
  * Definition?  Abbreviation?
  * insertion, deletion (strikethrough)
- * Fixed-width text?  Preformatted text is a better way of putting it.  Inline vs. its own block?  Huh.
- * Comments?
+ * Preformatted text
  * Internal links/anchors
 
 ```rust
 struct Document {
     contents: Vec<Part>,
-    title
-    date
-    author
-    previous revisions
-    subject
+    character_encoding: Encoding,
+    title: Option<String>,
+    date: Option<DateTime>, // Must be in UTC
+    local_date: Option<TimezoneOffset>, // Offset of author's timezone from UTC
+    author: Option<String>,
+    author_id: Option<Identity>,
+    previous_revisions: Option<Vec<CID>>,
+    subject: Option<String>, // Like an email subject... is this the same as "title"?
     categories/tags (with vocabularies?)
-    in-response-to
-    reply-to
-    language
-    character encoding
+    in_response_to: Option<CID>,
+    reply_to: Option<Identity>,
+    language: Option<String>,
+}
+
+/// Just UTF-8 for now.
+enum Encoding {
+    Utf8,
 }
 
 enum Part {
@@ -108,6 +114,7 @@ enum Part {
 /// Describe structure of the contained text
 enum Segment {
     Para(Elements),
+    Abstract(Elements),
     Table {
         header: Vec<Elements>
         body: Vec<Vec<Segment>>
@@ -115,7 +122,7 @@ enum Segment {
     },
     Figure {
         caption: Vec<Elements>,
-        source: ???,
+        source: CID, // May get fancier someday
     }
     List {
         type: ListType,
@@ -230,7 +237,7 @@ Okay, the REAL solution here is this: We MUST have a canonical format anyway, so
 
 SO, instead we can have a canonical binary format, and can take MANY sort of text formats and translate them into it.  So, HTML, Markdown, LaTeX and so on should all be able to be converted into WorldDoc, and a WorldDoc document within the target language's capabilities should be able to be losslessly (hopefully) translated back.  Pandoc may be a good tool for doing this, or there may be others.
 
-I'm leaning towards a CBOR encoding as the default canonical format.  It's flexible, it's fairly simple, it's fairly comprehensive, it's an IETF standard, it seems in general Not Terrible.  Cap'n Proto and a couple others are decent contenders.  Then we can use XML as a simple-but-complete source format to translate into this canonical format, or Markdown as a simpler-but-incomplete version.
+I'm leaning towards a [CBOR](http://cbor.io/) encoding as the default canonical format.  It's flexible, it's fairly simple, it's fairly comprehensive, it's an IETF standard, it seems in general Not Terrible.  Cap'n Proto and a couple others are decent contenders.  Then we can use XML as a simple-but-complete source format to translate into this canonical format, or Markdown as a simpler-but-incomplete version.
 
 Now things to think about: How to provide a schema, and do we care about a meta-schema system?
 
@@ -359,7 +366,7 @@ struct UpdateRequest {
     username: Identity,
     timestamp: DateTime,
     target: Location,
-    new_target: String, // CID?
+    new_target: CID,
     signature: Signature,
 }
 ```

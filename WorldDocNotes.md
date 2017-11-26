@@ -8,7 +8,7 @@ So first let's lay out some axioms, so we don't have to wonder about them:
  1. **All data will be content-addressed.**  It will thus also be immutable; changes will create a new datum with a new address.  Assume there will be some sort of human-readable representation that can be updated to point at new data objects.
  1. **Data is separate from style.**  We'll leave it there for now.
  1. **Data has some sort of encoding.**  We'll use XML for now until we figure out something better.
- 1. **For now we're dealing with documents.**  Other sorts of text and data, structured and unstructured, 
+ 1. **For now we're dealing with documents.**  Other sorts of text and data, structured and unstructured, are out of scope for the moment.
  1. **There will be indices.**  Lots of them.  Don't sweat the details yet.
  1. **It will be transferred over HTTP(2) and should be able to be rendered as a webpage.**  Gotta make it remotely possible to work with current tech.  (Though IPFS or something would be cool.)
 

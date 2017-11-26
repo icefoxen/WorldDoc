@@ -6,3 +6,5 @@ This repository is for various documentation and ideas and stuff.
 
  * WorldDoc.md: More-or-less solid specification
  * WorldDocNotes.md: Notes and thoughts.
+ * WorldApp.md: Random thoughts about application systems and such
+ * <https://github.com/icefoxen/WorldDocCode>: Actual code.
